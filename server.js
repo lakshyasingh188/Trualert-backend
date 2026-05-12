@@ -11,26 +11,16 @@ require('dotenv').config();
 // ================= SUPABASE =================
 
 const supabase = createClient(
-    'SUPABASE_URL',
-    'SUPABASE_KEY'
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
 );
-
-
-
-// ================= TWILIO =================
 
 const client = twilio(
-    'TWILIO_SID',
-    'TWILIO_AUTH_TOKEN'
+  process.env.TWILIO_SID,
+  process.env.TWILIO_AUTH_TOKEN
 );
 
-
-
-// ================= FINNHUB =================
-
-const FINNHUB_API_KEY =
-    'FINNHUB_API_KEY';
-
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 
 // ================= GET LIVE PRICE =================
