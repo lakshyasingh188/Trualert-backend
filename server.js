@@ -11,8 +11,8 @@ require('dotenv').config();
 // ================= SUPABASE =================
 
 const supabase = createClient(
-    'supabase url',
-    'supabase anon key'
+    'SUPABASE_URL',
+    'SUPABASE_KEY'
 );
 
 
@@ -20,8 +20,8 @@ const supabase = createClient(
 // ================= TWILIO =================
 
 const client = twilio(
-    'twillo sid',
-    'twillo auth code'
+    'TWILIO_SID',
+    'TWILIO_AUTH_TOKEN'
 );
 
 
@@ -29,7 +29,7 @@ const client = twilio(
 // ================= FINNHUB =================
 
 const FINNHUB_API_KEY =
-    'finhub code';
+    'FINNHUB_API_KEY';
 
 
 
