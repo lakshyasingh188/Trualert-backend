@@ -30,11 +30,12 @@ const client = twilio(
 
 // ================= FINNHUB =================
 
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+const FINNHUB_API_KEY =
+    process.env.FINNHUB_API_KEY;
 
 
 
-// ================= GET LIVE PRICE =================
+// ================= LIVE PRICE =================
 
 async function getLivePrice(symbol) {
 
@@ -57,6 +58,55 @@ async function getLivePrice(symbol) {
 
 
 
+// ================= MAKE CALL =================
+
+async function makeCall(phone, message) {
+
+    try {
+
+        await client.calls.create({
+
+            twiml: `
+<Response>
+
+<Say voice="alice">
+${message}
+</Say>
+
+<Pause length="1"/>
+
+<Say voice="alice">
+${message}
+</Say>
+
+<Pause length="1"/>
+
+<Say voice="alice">
+${message}
+</Say>
+
+</Response>
+            `,
+
+            to: phone,
+
+            from: process.env.TWILIO_PHONE
+
+        });
+
+        return true;
+
+    } catch (e) {
+
+        console.log("Twilio Call Error");
+        console.log(e.message);
+
+        return false;
+    }
+}
+
+
+
 // ================= NORMAL REMINDER =================
 
 cron.schedule('* * * * *', async () => {
@@ -65,8 +115,6 @@ cron.schedule('* * * * *', async () => {
 
     try {
 
-        const now = new Date();
-
         const { data, error } = await supabase
             .from('reminders')
             .select('*')
@@ -74,111 +122,89 @@ cron.schedule('* * * * *', async () => {
 
         if (error) {
 
-            console.log(error);
+            console.log(error.message);
             return;
         }
 
+        const now = new Date();
+
         for (const reminder of data) {
 
-            const reminderTime =
-                new Date(reminder.reminder_time);
+            try {
 
-            // IMPORTANT FIX
-            // SERVER MINUTE + USER MINUTE MATCH
+                const reminderTime =
+                    new Date(reminder.reminder_time);
 
-            const nowYear = now.getUTCFullYear();
-            const nowMonth = now.getUTCMonth();
-            const nowDate = now.getUTCDate();
-            const nowHour = now.getUTCHours();
-            const nowMinute = now.getUTCMinutes();
+                // DIFFERENCE IN MILLISECONDS
 
-            const reminderYear =
-                reminderTime.getUTCFullYear();
+                const diff =
+                    Math.abs(
+                        now.getTime() -
+                        reminderTime.getTime()
+                    );
 
-            const reminderMonth =
-                reminderTime.getUTCMonth();
+                // 1 MINUTE WINDOW
 
-            const reminderDate =
-                reminderTime.getUTCDate();
+                const oneMinute =
+                    60 * 1000;
 
-            const reminderHour =
-                reminderTime.getUTCHours();
+                console.log(
+                    "Reminder ID:",
+                    reminder.id
+                );
 
-            const reminderMinute =
-                reminderTime.getUTCMinutes();
+                console.log(
+                    "Now:",
+                    now.toISOString()
+                );
 
-            const isSameMinute =
+                console.log(
+                    "Reminder:",
+                    reminderTime.toISOString()
+                );
 
-                nowYear === reminderYear &&
-                nowMonth === reminderMonth &&
-                nowDate === reminderDate &&
-                nowHour === reminderHour &&
-                nowMinute === reminderMinute;
+                console.log(
+                    "Diff:",
+                    diff
+                );
 
-            console.log(
-                "NOW:",
-                nowHour + ":" + nowMinute
-            );
-
-            console.log(
-                "REMINDER:",
-                reminderHour + ":" + reminderMinute
-            );
-
-            if (isSameMinute) {
-
-                try {
+                if (diff <= oneMinute) {
 
                     console.log(
-                        "Calling:",
+                        "Calling User:",
                         reminder.phone
                     );
 
-                    await client.calls.create({
+                    const success =
+                        await makeCall(
+                            reminder.phone,
+                            reminder.message
+                        );
 
-                        twiml: `
-<Response>
+                    if (success) {
 
-<Say voice="alice">
-${reminder.message}
-</Say>
+                        await supabase
+                            .from('reminders')
+                            .update({
+                                called: true
+                            })
+                            .eq('id', reminder.id);
 
-<Pause length="1"/>
+                        console.log(
+                            "Reminder Call Success"
+                        );
 
-<Say voice="alice">
-${reminder.message}
-</Say>
-
-<Pause length="1"/>
-
-<Say voice="alice">
-${reminder.message}
-</Say>
-
-</Response>
-                        `,
-
-                        to: reminder.phone,
-
-                        from: '+15706528097'
-
-                    });
-
-                    await supabase
-                        .from('reminders')
-                        .update({ called: true })
-                        .eq('id', reminder.id);
-
-                    console.log(
-                        "Reminder Call Success"
-                    );
-
-                } catch (e) {
-
-                    console.log("Twilio Error");
-                    console.log(e.message);
+                    }
 
                 }
+
+            } catch (e) {
+
+                console.log(
+                    "Single Reminder Error"
+                );
+
+                console.log(e.message);
 
             }
 
@@ -202,7 +228,9 @@ ${reminder.message}
 
 cron.schedule('* * * * *', async () => {
 
-    console.log("Checking Trader Reminders...");
+    console.log(
+        "Checking Trader Reminders..."
+    );
 
     try {
 
@@ -213,106 +241,102 @@ cron.schedule('* * * * *', async () => {
 
         if (error) {
 
-            console.log(error);
+            console.log(error.message);
             return;
         }
 
         for (const item of data) {
 
-            const livePrice =
-                await getLivePrice(item.symbol);
+            try {
 
-            console.log(
-                "Symbol:",
-                item.symbol
-            );
+                const livePrice =
+                    await getLivePrice(
+                        item.symbol
+                    );
 
-            console.log(
-                "Live Price:",
-                livePrice
-            );
+                console.log(
+                    "Symbol:",
+                    item.symbol
+                );
 
-            console.log(
-                "Target:",
-                item.target_price
-            );
+                console.log(
+                    "Live Price:",
+                    livePrice
+                );
 
-            if (livePrice == null)
-                continue;
+                console.log(
+                    "Target:",
+                    item.target_price
+                );
 
-            let shouldCall = false;
+                if (livePrice == null)
+                    continue;
 
-            // ABOVE TARGET
+                let shouldCall = false;
 
-            if (
+                // ABOVE TARGET
 
-                item.direction === 'above' &&
-                livePrice >= item.target_price
+                if (
 
-            ) {
+                    item.direction === 'above' &&
+                    livePrice >= item.target_price
 
-                shouldCall = true;
+                ) {
 
-            }
+                    shouldCall = true;
 
-            // BELOW TARGET
+                }
 
-            if (
+                // BELOW TARGET
 
-                item.direction === 'below' &&
-                livePrice <= item.target_price
+                if (
 
-            ) {
+                    item.direction === 'below' &&
+                    livePrice <= item.target_price
 
-                shouldCall = true;
+                ) {
 
-            }
+                    shouldCall = true;
 
-            if (shouldCall) {
+                }
 
-                try {
+                if (shouldCall) {
 
                     console.log(
-                        "Trader Call:",
+                        "Trader Calling:",
                         item.phone
                     );
 
-                    await client.calls.create({
+                    const success =
+                        await makeCall(
+                            item.phone,
+                            `${item.symbol} target price reached`
+                        );
 
-                        twiml: `
-<Response>
+                    if (success) {
 
-<Say voice="alice">
-${item.symbol} target price reached
-</Say>
+                        await supabase
+                            .from('trader_reminders')
+                            .update({
+                                called: true
+                            })
+                            .eq('id', item.id);
 
-</Response>
-                        `,
+                        console.log(
+                            "Trader Call Success"
+                        );
 
-                        to: item.phone,
-
-                        from: '+15706528097'
-
-                    });
-
-                    await supabase
-                        .from('trader_reminders')
-                        .update({ called: true })
-                        .eq('id', item.id);
-
-                    console.log(
-                        "Trader Call Success"
-                    );
-
-                } catch (e) {
-
-                    console.log(
-                        "Trader Twilio Error"
-                    );
-
-                    console.log(e.message);
+                    }
 
                 }
+
+            } catch (e) {
+
+                console.log(
+                    "Single Trader Error"
+                );
+
+                console.log(e.message);
 
             }
 
@@ -348,10 +372,13 @@ getLivePrice("OANDA:XAU_USD")
 
 // ================= SERVER =================
 
-app.listen(3000, () => {
+const PORT =
+    process.env.PORT || 3000;
+
+app.listen(PORT, () => {
 
     console.log(
-        "Server running on port 3000"
+        `Server running on port ${PORT}`
     );
 
 });
