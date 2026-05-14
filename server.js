@@ -4,23 +4,22 @@ const twilio = require('twilio');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
-const app = express();
 require('dotenv').config();
 
-
-// ================= SUPABASE =================
+const app = express();
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_KEY
 );
 
 const client = twilio(
-  process.env.TWILIO_SID,
-  process.env.TWILIO_AUTH_TOKEN
+    process.env.TWILIO_SID,
+    process.env.TWILIO_AUTH_TOKEN
 );
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+
 
 
 // ================= GET LIVE PRICE =================
@@ -41,9 +40,7 @@ async function getLivePrice(symbol) {
         console.log(e.message);
 
         return null;
-
     }
-
 }
 
 
@@ -65,16 +62,13 @@ cron.schedule('* * * * *', async () => {
 
         console.log(error);
         return;
-
     }
 
     for (const reminder of data) {
 
         const reminderTime = new Date(reminder.reminder_time);
 
-        const diff = Math.abs(now - reminderTime);
-
-        if (diff < 60000) {
+        if (now >= reminderTime) {
 
             try {
 
@@ -84,11 +78,6 @@ cron.schedule('* * * * *', async () => {
 
                     twiml: `
 <Response>
-<Say voice="alice">
-${reminder.message}
-</Say>
-
-<Pause length="1"/>
 
 <Say voice="alice">
 ${reminder.message}
@@ -99,11 +88,11 @@ ${reminder.message}
 <Say voice="alice">
 ${reminder.message}
 </Say>
+
 </Response>
-`,
+          `,
 
                     to: reminder.phone,
-
                     from: '+15706528097'
 
                 });
@@ -119,13 +108,9 @@ ${reminder.message}
 
                 console.log("Twilio Error");
                 console.log(e.message);
-
             }
-
         }
-
     }
-
 });
 
 
@@ -145,7 +130,6 @@ cron.schedule('* * * * *', async () => {
 
         console.log(error);
         return;
-
     }
 
     for (const item of data) {
@@ -154,7 +138,6 @@ cron.schedule('* * * * *', async () => {
 
         console.log("Symbol:", item.symbol);
         console.log("Live Price:", livePrice);
-        console.log("Target:", item.target_price);
 
         if (livePrice == null) continue;
 
@@ -164,18 +147,14 @@ cron.schedule('* * * * *', async () => {
             item.direction === 'above' &&
             livePrice >= item.target_price
         ) {
-
             shouldCall = true;
-
         }
 
         if (
             item.direction === 'below' &&
             livePrice <= item.target_price
         ) {
-
             shouldCall = true;
-
         }
 
         if (shouldCall) {
@@ -186,11 +165,17 @@ cron.schedule('* * * * *', async () => {
 
                 await client.calls.create({
 
-                    twiml:
-                        `<Response><Say>${item.symbol} target price reached.</Say></Response>`,
+                    twiml: `
+<Response>
+
+<Say voice="alice">
+${item.symbol} target price reached
+</Say>
+
+</Response>
+          `,
 
                     to: item.phone,
-
                     from: '+15706528097'
 
                 });
@@ -206,18 +191,14 @@ cron.schedule('* * * * *', async () => {
 
                 console.log("Trader Twilio Error");
                 console.log(e.message);
-
             }
-
         }
-
     }
-
 });
 
 
 
-// ================= TEST PRICE =================
+// ================= TEST =================
 
 getLivePrice("OANDA:XAU_USD")
     .then(price => {
