@@ -8,15 +8,27 @@ require('dotenv').config();
 
 const app = express();
 
+
+
+// ================= SUPABASE =================
+
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_KEY
 );
 
+
+
+// ================= TWILIO =================
+
 const client = twilio(
     process.env.TWILIO_SID,
     process.env.TWILIO_AUTH_TOKEN
 );
+
+
+
+// ================= FINNHUB =================
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
@@ -60,17 +72,32 @@ cron.schedule('* * * * *', async () => {
 
     if (error) {
 
+        console.log("Supabase Error:");
         console.log(error);
+
         return;
     }
 
     for (const reminder of data) {
 
-        const reminderTime = new Date(reminder.reminder_time);
+        // IMPORTANT TIME FIX
+        const reminderTime = new Date(
+            new Date(reminder.reminder_time).getTime()
+        );
 
-        const diff = now.getTime() - reminderTime.getTime();
+        console.log("NOW:", now);
+        console.log("REMINDER:", reminderTime);
 
-        if (diff >= 0 && diff <= 30000) {
+        // DIFFERENCE IN SECONDS
+        const diffSeconds = Math.floor(
+            (now.getTime() - reminderTime.getTime()) / 1000
+        );
+
+        console.log("DIFF:", diffSeconds);
+
+        // CALL ONLY AFTER TIME REACHED
+        // ONLY WITHIN 10 SECONDS WINDOW
+        if (diffSeconds >= 0 && diffSeconds <= 60) {
 
             try {
 
@@ -92,7 +119,7 @@ ${reminder.message}
 </Say>
 
 </Response>
-          `,
+                    `,
 
                     to: reminder.phone,
                     from: '+15706528097'
@@ -130,7 +157,9 @@ cron.schedule('* * * * *', async () => {
 
     if (error) {
 
+        console.log("Trader Supabase Error:");
         console.log(error);
+
         return;
     }
 
@@ -140,22 +169,27 @@ cron.schedule('* * * * *', async () => {
 
         console.log("Symbol:", item.symbol);
         console.log("Live Price:", livePrice);
+        console.log("Target Price:", item.target_price);
 
         if (livePrice == null) continue;
 
         let shouldCall = false;
 
+        // ABOVE TARGET
         if (
             item.direction === 'above' &&
             livePrice >= item.target_price
         ) {
+
             shouldCall = true;
         }
 
+        // BELOW TARGET
         if (
             item.direction === 'below' &&
             livePrice <= item.target_price
         ) {
+
             shouldCall = true;
         }
 
@@ -175,7 +209,7 @@ ${item.symbol} target price reached
 </Say>
 
 </Response>
-          `,
+                    `,
 
                     to: item.phone,
                     from: '+15706528097'
@@ -200,7 +234,7 @@ ${item.symbol} target price reached
 
 
 
-// ================= TEST =================
+// ================= TEST PRICE =================
 
 getLivePrice("OANDA:XAU_USD")
     .then(price => {
