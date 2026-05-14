@@ -68,7 +68,9 @@ cron.schedule('* * * * *', async () => {
 
         const reminderTime = new Date(reminder.reminder_time);
 
-        if (now >= reminderTime) {
+        const diff = now.getTime() - reminderTime.getTime();
+
+        if (diff >= 0 && diff <= 30000) {
 
             try {
 
