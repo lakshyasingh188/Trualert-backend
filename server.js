@@ -7,7 +7,7 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
-hhh
+
 
 
 // ========================= SUPABASE =========================
