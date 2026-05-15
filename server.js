@@ -10,7 +10,7 @@ const app = express();
 
 
 
-// ================= SUPABASE =================
+// ========================= SUPABASE =========================
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -19,7 +19,7 @@ const supabase = createClient(
 
 
 
-// ================= TWILIO =================
+// ========================= TWILIO =========================
 
 const client = twilio(
     process.env.TWILIO_SID,
@@ -28,14 +28,13 @@ const client = twilio(
 
 
 
-// ================= FINNHUB =================
+// ========================= FINNHUB =========================
 
-const FINNHUB_API_KEY =
-    process.env.FINNHUB_API_KEY;
-
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 
-// ================= LIVE PRICE =================
+
+// ========================= GET LIVE PRICE =========================
 
 async function getLivePrice(symbol) {
 
@@ -58,55 +57,6 @@ async function getLivePrice(symbol) {
 
 
 
-// ================= MAKE CALL =================
-
-async function makeCall(phone, message) {
-
-    try {
-
-        await client.calls.create({
-
-            twiml: `
-<Response>
-
-<Say voice="alice">
-${message}
-</Say>
-
-<Pause length="1"/>
-
-<Say voice="alice">
-${message}
-</Say>
-
-<Pause length="1"/>
-
-<Say voice="alice">
-${message}
-</Say>
-
-</Response>
-            `,
-
-            to: phone,
-
-            from: process.env.TWILIO_PHONE
-
-        });
-
-        return true;
-
-    } catch (e) {
-
-        console.log("Twilio Call Error");
-        console.log(e.message);
-
-        return false;
-    }
-}
-
-
-
 // ================= NORMAL REMINDER =================
 
 cron.schedule('* * * * *', async () => {
@@ -122,89 +72,101 @@ cron.schedule('* * * * *', async () => {
 
         if (error) {
 
-            console.log(error.message);
+            console.log(error);
             return;
+
+        }
+
+        if (!data || data.length === 0) {
+
+            console.log("No Pending Reminders");
+            return;
+
         }
 
         const now = new Date();
 
         for (const reminder of data) {
 
-            try {
+            const reminderTime =
+                new Date(reminder.reminder_time);
 
-                const reminderTime =
-                    new Date(reminder.reminder_time);
+            console.log("NOW:", now.toISOString());
 
-                // DIFFERENCE IN MILLISECONDS
+            console.log(
+                "REMINDER:",
+                reminderTime.toISOString()
+            );
 
-                const diff =
-                    Math.abs(
-                        now.getTime() -
-                        reminderTime.getTime()
-                    );
+            // DIFFERENCE IN SECONDS
 
-                // 1 MINUTE WINDOW
+            const diffSeconds = Math.floor(
+                (now.getTime() -
+                    reminderTime.getTime()) / 1000
+            );
 
-                const oneMinute =
-                    60 * 1000;
+            console.log(
+                "DIFF SECONDS:",
+                diffSeconds
+            );
 
-                console.log(
-                    "Reminder ID:",
-                    reminder.id
-                );
+            // ONLY CALL AFTER TIME
+            // WITHIN 60 SECONDS
 
-                console.log(
-                    "Now:",
-                    now.toISOString()
-                );
+            if (
+                diffSeconds >= 0 &&
+                diffSeconds <= 60
+            ) {
 
-                console.log(
-                    "Reminder:",
-                    reminderTime.toISOString()
-                );
-
-                console.log(
-                    "Diff:",
-                    diff
-                );
-
-                if (diff <= oneMinute) {
+                try {
 
                     console.log(
-                        "Calling User:",
+                        "Calling:",
                         reminder.phone
                     );
 
-                    const success =
-                        await makeCall(
-                            reminder.phone,
-                            reminder.message
-                        );
+                    await client.calls.create({
 
-                    if (success) {
+                        twiml: `
+<Response>
 
-                        await supabase
-                            .from('reminders')
-                            .update({
-                                called: true
-                            })
-                            .eq('id', reminder.id);
+<Say voice="alice">
+${reminder.message}
+</Say>
 
-                        console.log(
-                            "Reminder Call Success"
-                        );
+<Pause length="1"/>
 
-                    }
+<Say voice="alice">
+${reminder.message}
+</Say>
+
+</Response>
+                        `,
+
+                        to: reminder.phone,
+
+                        from: '+15706528097'
+
+                    });
+
+                    await supabase
+                        .from('reminders')
+                        .update({ called: true })
+                        .eq('id', reminder.id);
+
+                    console.log(
+                        "Reminder Call Success"
+                    );
+
+                } catch (e) {
+
+                    console.log(
+                        "Twilio Error"
+                    );
+
+                    console.log(e.message);
 
                 }
-
-            } catch (e) {
-
-                console.log(
-                    "Single Reminder Error"
-                );
-
-                console.log(e.message);
 
             }
 
@@ -213,7 +175,7 @@ cron.schedule('* * * * *', async () => {
     } catch (e) {
 
         console.log(
-            "Normal Reminder Error"
+            "Reminder System Error"
         );
 
         console.log(e.message);
@@ -222,15 +184,11 @@ cron.schedule('* * * * *', async () => {
 
 });
 
-
-
-// ================= TRADER REMINDER =================
+// ========================= TRADER REMINDER =========================
 
 cron.schedule('* * * * *', async () => {
 
-    console.log(
-        "Checking Trader Reminders..."
-    );
+    console.log("Checking Trader Reminders...");
 
     try {
 
@@ -241,102 +199,122 @@ cron.schedule('* * * * *', async () => {
 
         if (error) {
 
-            console.log(error.message);
+            console.log(
+                "Trader Reminder Fetch Error"
+            );
+
+            console.log(error);
+
+            return;
+        }
+
+        if (!data || data.length === 0) {
+
+            console.log(
+                "No Pending Trader Reminders"
+            );
+
             return;
         }
 
         for (const item of data) {
 
-            try {
+            const livePrice =
+                await getLivePrice(item.symbol);
 
-                const livePrice =
-                    await getLivePrice(
-                        item.symbol
-                    );
+            console.log(
+                "Symbol:",
+                item.symbol
+            );
 
-                console.log(
-                    "Symbol:",
-                    item.symbol
-                );
+            console.log(
+                "Live Price:",
+                livePrice
+            );
 
-                console.log(
-                    "Live Price:",
-                    livePrice
-                );
+            console.log(
+                "Target Price:",
+                item.target_price
+            );
 
-                console.log(
-                    "Target:",
-                    item.target_price
-                );
+            if (livePrice == null)
+                continue;
 
-                if (livePrice == null)
-                    continue;
+            let shouldCall = false;
 
-                let shouldCall = false;
+            // ABOVE TARGET
 
-                // ABOVE TARGET
+            if (
 
-                if (
+                item.direction === 'above' &&
+                livePrice >= item.target_price
 
-                    item.direction === 'above' &&
-                    livePrice >= item.target_price
+            ) {
 
-                ) {
+                shouldCall = true;
 
-                    shouldCall = true;
+            }
 
-                }
+            // BELOW TARGET
 
-                // BELOW TARGET
+            if (
 
-                if (
+                item.direction === 'below' &&
+                livePrice <= item.target_price
 
-                    item.direction === 'below' &&
-                    livePrice <= item.target_price
+            ) {
 
-                ) {
+                shouldCall = true;
 
-                    shouldCall = true;
+            }
 
-                }
+            if (shouldCall) {
 
-                if (shouldCall) {
+                try {
 
                     console.log(
-                        "Trader Calling:",
+                        "Trader Call:",
                         item.phone
                     );
 
-                    const success =
-                        await makeCall(
-                            item.phone,
-                            `${item.symbol} target price reached`
-                        );
+                    await client.calls.create({
 
-                    if (success) {
+                        twiml: `
+<Response>
 
-                        await supabase
-                            .from('trader_reminders')
-                            .update({
-                                called: true
-                            })
-                            .eq('id', item.id);
+<Say voice="alice">
+${item.symbol} target price reached
+</Say>
 
-                        console.log(
-                            "Trader Call Success"
-                        );
+</Response>
+                        `,
 
-                    }
+                        to: item.phone,
+
+                        from: '+15706528097'
+
+                    });
+
+                    // MARK AS CALLED
+
+                    await supabase
+                        .from('trader_reminders')
+                        .update({ called: true })
+                        .eq('id', item.id);
+
+                    console.log(
+                        "Trader Reminder Call Success"
+                    );
+
+                } catch (e) {
+
+                    console.log(
+                        "Trader Reminder Twilio Error"
+                    );
+
+                    console.log(e.message);
 
                 }
-
-            } catch (e) {
-
-                console.log(
-                    "Single Trader Error"
-                );
-
-                console.log(e.message);
 
             }
 
@@ -345,7 +323,7 @@ cron.schedule('* * * * *', async () => {
     } catch (e) {
 
         console.log(
-            "Trader Reminder Error"
+            "Trader Reminder System Error"
         );
 
         console.log(e.message);
@@ -356,7 +334,7 @@ cron.schedule('* * * * *', async () => {
 
 
 
-// ================= TEST =================
+// ========================= TEST API =========================
 
 getLivePrice("OANDA:XAU_USD")
     .then(price => {
@@ -370,15 +348,12 @@ getLivePrice("OANDA:XAU_USD")
 
 
 
-// ================= SERVER =================
+// ========================= SERVER =========================
 
-const PORT =
-    process.env.PORT || 3000;
-
-app.listen(PORT, () => {
+app.listen(3000, () => {
 
     console.log(
-        `Server running on port ${PORT}`
+        "Server running on port 3000"
     );
 
 });
