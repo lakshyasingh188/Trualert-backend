@@ -183,3 +183,176 @@ ${reminder.message}
     }
 
 });
+// ========================= TRADER REMINDER =========================
+
+cron.schedule('* * * * *', async () => {
+
+    console.log("Checking Trader Reminders...");
+
+    try {
+
+        const { data, error } = await supabase
+            .from('trader_reminders')
+            .select('*')
+            .eq('called', false);
+
+        if (error) {
+
+            console.log(
+                "Trader Reminder Fetch Error"
+            );
+
+            console.log(error);
+
+            return;
+        }
+
+        if (!data || data.length === 0) {
+
+            console.log(
+                "No Pending Trader Reminders"
+            );
+
+            return;
+        }
+
+        for (const item of data) {
+
+            const livePrice =
+                await getLivePrice(item.symbol);
+
+            console.log(
+                "Symbol:",
+                item.symbol
+            );
+
+            console.log(
+                "Live Price:",
+                livePrice
+            );
+
+            console.log(
+                "Target Price:",
+                item.target_price
+            );
+
+            if (livePrice == null)
+                continue;
+
+            let shouldCall = false;
+
+            // ABOVE TARGET
+
+            if (
+
+                item.direction === 'above' &&
+                livePrice >= item.target_price
+
+            ) {
+
+                shouldCall = true;
+
+            }
+
+            // BELOW TARGET
+
+            if (
+
+                item.direction === 'below' &&
+                livePrice <= item.target_price
+
+            ) {
+
+                shouldCall = true;
+
+            }
+
+            if (shouldCall) {
+
+                try {
+
+                    console.log(
+                        "Trader Call:",
+                        item.phone
+                    );
+
+                    await client.calls.create({
+
+                        twiml: `
+<Response>
+
+<Say voice="alice">
+${item.symbol} target price reached
+</Say>
+
+</Response>
+                        `,
+
+                        to: item.phone,
+
+                        from: '+15706528097'
+
+                    });
+
+                    // MARK AS CALLED
+
+                    await supabase
+                        .from('trader_reminders')
+                        .update({ called: true })
+                        .eq('id', item.id);
+
+                    console.log(
+                        "Trader Reminder Call Success"
+                    );
+
+                } catch (e) {
+
+                    console.log(
+                        "Trader Reminder Twilio Error"
+                    );
+
+                    console.log(e.message);
+
+                }
+
+            }
+
+        }
+
+    } catch (e) {
+
+        console.log(
+            "Trader Reminder System Error"
+        );
+
+        console.log(e.message);
+
+    }
+
+});
+
+
+
+// ========================= TEST API =========================
+
+getLivePrice("OANDA:XAU_USD")
+    .then(price => {
+
+        console.log(
+            "Gold Price:",
+            price
+        );
+
+    });
+
+
+
+// ========================= SERVER =========================
+
+app.listen(3000, () => {
+
+    console.log(
+        "Server running on port 3000"
+    );
+
+}); // updated
